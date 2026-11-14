@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حاسبة تقييم التربصات قصيرة المدى - قرار 2026</title>
+    
+    <!-- إعدادات تطبيق الويب التقدمي (PWA) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#073525">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="حاسبة التربصات">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Tajawal', 'sans-serif'],
+                        heading: ['Reem Kufi', 'sans-serif'],
+                        print: ['Amiri', 'Traditional Arabic', 'serif'] 
+                    },
+                    colors: {
+                        uni: { dark: '#073525', accent: '#00C288', light: '#f0fdfa' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js & Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/persist@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        body { background-color: #f8fafc; overflow-x: hidden; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        [x-cloak] { display: none !important; }
+        
+        /* إعدادات الطباعة الصارمة والاحترافية */
+        @media print {
+            @page { size: A4 portrait; margin: 0 !important; } 
+            
+            html, body { 
+                background: white !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+                direction: rtl !important;
+                width: 100% !important; 
+            }
+            
+            /* إجبار جذري على خط الأميري لكل عناصر الطباعة */
+            .print-only, .print-only * {
+                font-family: 'Amiri', 'Traditional Arabic', serif !important;
+            }
+
+            *, *:before, *:after { box-sizing: border-box !important; }
+            
+            .screen-only { display: none !important; }
+            .print-only { display: block !important; width: 100% !important; }
+            
+            table.page-shell { width: 100%; border: none !important; border-collapse: collapse; }
+            table.page-shell > thead > tr > td { height: 15mm; border: none !important; padding: 6mm 15mm 0 15mm !important; }
+            table.page-shell > tbody > tr > td { border: none !important; padding: 0 15mm 15mm 15mm !important; }
+            
+            table.content-table { 
+                width: 100% !important;
+                border-collapse: collapse !important; 
+                margin-top: 10px !important; 
+                font-size: 15px !important; 
+                table-layout: fixed !important; 
+            }
+            table.content-table th, table.content-table td { 
+                border: 1px solid #000 !important;
+                padding: 6px 8px !important; 
+                text-align: right !important; 
+                color: #000 !important;
+                font-style: normal !important;
+                font-weight: bold !important;
+                word-wrap: break-word !important;
+            }
+            table.content-table th { 
+                background-color: #f3f4f6 !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important;
+                text-align: center !important;
+            }
+            table.content-table tr { break-inside: avoid !important; }
+            thead { display: table-header-group; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 pb-32" x-data="internshipCalc()" x-cloak>
+
+    <!-- ========================================== -->
+    <!-- واجهة المستخدم (تختفي عند الطباعة) -->
+    <!-- ========================================== -->
+    <div class="screen-only">
+        <header class="bg-uni-dark text-white shadow-lg py-6 px-4 relative">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
+                <div>
+                    <h1 class="text-3xl font-heading font-bold text-center md:text-right">بوابة تقييم التربصات قصيرة المدى</h1>
+                    <p class="text-uni-accent font-medium text-sm mt-1 text-center md:text-right font-sans">تطبيقاً لملحق القرار المؤرخ في 09 مارس 2026</p>
+                </div>
+                <button @click="resetData()" class="bg-red-500/20 text-red-100 hover:bg-red-500 px-4 py-2 rounded-lg font-bold transition flex items-center gap-2 border border-red-500/30">
+                    تفريغ الحقول وبدء جديد
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-6xl mx-auto mt-6 px-4 grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- لوحة الإحصائيات -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sticky top-6">
+                    <h3 class="font-heading font-bold text-lg text-uni-dark mb-4 border-b pb-2">لوحة الإحصائيات</h3>
+                    <div class="mb-4"><canvas id="scoreChart" height="250"></canvas></div>
+                    <div class="bg-uni-light p-4 rounded-xl border border-uni-accent/20 text-center">
+                        <span class="block text-sm text-gray-600 mb-1">المجموع الكلي المحتسب</span>
+                        <span class="text-4xl font-black text-uni-dark" x-text="grandTotal.toFixed(2).replace(/\.00$/, '')"></span>
+                    </div>
+                    <div class="mt-4 flex flex-col gap-2">
+                        <button @click="printPage()" class="w-full bg-uni-accent text-uni-dark hover:bg-emerald-500 hover:text-white px-4 py-3 rounded-xl font-bold transition shadow-md flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                            طباعة شبكة التقييم (PDF)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-3 space-y-4">
+                
+                <!-- الشروط التنظيمية الهامة -->
+                <div class="bg-blue-50 border-r-4 border-blue-500 p-4 rounded-lg shadow-sm text-sm text-blue-900 mb-4 font-bold">
+                    <h4 class="text-lg font-bold mb-2 text-blue-950 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        شروط تنظيمية مرتبطة باحتساب الأعمال:
+                    </h4>
+                    <ul class="list-disc list-inside space-y-1 pr-2">
+                        <li>تُحتسب الأعمال المنجزة ابتداءً من تاريخ غلق منصة إيداع الملفات لآخر استفادة.</li>
+                        <li>تُؤخذ بعين الاعتبار جميع الأعمال المذكورة في شبكة التقييم بعد الاستفادة السابقة، حتى في حالة تحويل المؤسسة الجامعية أو البحثية.</li>
+                    </ul>
+                </div>
+
+                <!-- نظام الإدارة -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-300 p-5 bg-gradient-to-br from-white to-gray-50 mb-4">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 pb-4 mb-4">
+                        <h2 class="font-heading font-bold text-xl text-uni-dark flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-uni-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            نظام إدارة الملفات
+                        </h2>
+                        <div class="flex items-center gap-2 w-full md:w-auto">
+                            <select x-model="selectedProfile" @change="loadProfile()" class="border border-gray-300 rounded-lg p-2 text-sm focus:border-uni-accent outline-none flex-1 md:w-64 font-sans bg-white shadow-sm font-bold text-gray-700">
+                                <option value="">-- تحميل تقييم أستاذ محفوظ --</option>
+                                <template x-for="profile in savedProfiles" :key="profile.profName">
+                                    <option :value="profile.profName" x-text="'الدكتور(ة): ' + profile.profName + ' (' + profile.lastUpdated + ')'"></option>
+                                </template>
+                            </select>
+                            <button @click="deleteSelectedProfile()" x-show="selectedProfile" class="bg-white border border-red-200 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-lg transition shadow-sm" title="حذف الملف نهائياً">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col md:flex-row items-center gap-4">
+                        <label class="font-bold text-gray-700 whitespace-nowrap text-lg">الدكتـــور(ة):</label>
+                        <input type="text" x-model="profName" placeholder="الاسم واللقب (سيظهر في الطباعة)..." class="w-full border-b-2 border-gray-300 focus:border-uni-accent outline-none px-2 py-1 text-xl font-bold text-uni-dark bg-transparent transition-colors font-sans">
+                        <button @click="saveProfile()" class="bg-uni-dark text-white hover:bg-uni-accent px-6 py-2.5 rounded-xl font-bold transition shadow-md whitespace-nowrap flex items-center gap-2 w-full md:w-auto justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                            حفظ / تحديث الملف
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 1. الرتبة الأكاديمية (مع توضيح الخصم) -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-4 accordion-container" x-data="{ exp: true }">
+                    <button @click="exp = !exp" class="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-uni-light border-b border-gray-200">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-uni-dark text-white rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm">1</div>
+                            <h2 class="font-heading font-bold text-lg text-gray-800">الرتبة العلمية والاستفادات السابقة</h2>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold border border-green-200" x-text="rankTotal + ' نقطة (المجموع)'"></span>
+                            <span class="text-[11px] text-gray-500 font-bold hidden md:block" x-text="`(الرتبة: ${getBaseRankPoints()} | الاستفادات: ${benefits > 0 ? '-' + benefits : '0'})`"></span>
+                        </div>
+                    </button>
+                    
+                    <div x-show="exp" class="p-5 accordion-content">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                            <label class="flex flex-col items-center p-3 border rounded-xl cursor-pointer transition hover:bg-gray-50" :class="rank === 'distinguished' ? 'border-uni-accent bg-uni-light ring-1 ring-uni-accent' : 'border-gray-200'">
+                                <input type="radio" x-model="rank" value="distinguished" class="hidden">
+                                <span class="font-bold text-gray-800">أستاذ مميز</span>
+                                <span class="text-sm text-uni-accent font-semibold mt-1">9 نقاط</span>
+                            </label>
+                            <label class="flex flex-col items-center p-3 border rounded-xl cursor-pointer transition hover:bg-gray-50" :class="rank === 'prof' ? 'border-uni-accent bg-uni-light ring-1 ring-uni-accent' : 'border-gray-200'">
+                                <input type="radio" x-model="rank" value="prof" class="hidden">
+                                <span class="font-bold text-gray-800">أستاذ</span>
+                                <span class="text-sm text-uni-accent font-semibold mt-1">7 نقاط</span>
+                            </label>
+                            <label class="flex flex-col items-center p-3 border rounded-xl cursor-pointer transition hover:bg-gray-50" :class="rank === 'mca' ? 'border-uni-accent bg-uni-light ring-1 ring-uni-accent' : 'border-gray-200'">
+                                <input type="radio" x-model="rank" value="mca" class="hidden">
+                                <span class="font-bold text-gray-800">أستاذ محاضر أ</span>
+                                <span class="text-sm text-uni-accent font-semibold mt-1">5 نقاط</span>
+                            </label>
+                            <label class="flex flex-col items-center p-3 border rounded-xl cursor-pointer transition hover:bg-gray-50" :class="rank === 'mcb' ? 'border-uni-accent bg-uni-light ring-1 ring-uni-accent' : 'border-gray-200'">
+                                <input type="radio" x-model="rank" value="mcb" class="hidden">
+                                <span class="font-bold text-gray-800">أستاذ محاضر ب</span>
+                                <span class="text-sm text-uni-accent font-semibold mt-1">3 نقاط</span>
+                            </label>
+                        </div>
+
+                        <div x-show="rank === 'mcb'" x-transition class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl flex items-center justify-between mb-4">
+                            <div>
+                                <span class="block text-sm text-blue-900 font-bold">التأهيل الجامعي (طلب مسبق)</span>
+                                <span class="text-xs text-blue-700">تضاف 4 نقاط مرة واحدة للمحاضر ب</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="habilitation" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-uni-accent"></div>
+                            </label>
+                        </div>
+
+                        <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl flex items-center justify-between">
+                            <div>
+                                <span class="block font-bold text-gray-700 text-sm">عدد الاستفادات السابقة في آخر 3 سنوات</span>
+                                <span class="text-[11px] text-gray-500 block mt-1">يُخصم (1) نقطة عن كل استفادة. (لا تضاف نقاط مجانية لمن لم يستفد).</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="number" min="0" max="3" x-model.number="benefits" @input="benefits = Math.min(Math.max(0, benefits), 3)" class="w-16 border-gray-300 rounded-lg p-2 text-center shadow-sm">
+                                <span class="font-black text-lg text-red-600 w-12 text-center" x-text="benefits > 0 ? '-' + benefits : '0'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. المقالات العلمية -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-4 accordion-container" x-data="{ exp: true }">
+                    <button @click="exp = !exp" class="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-uni-light border-b border-gray-200">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-uni-dark text-white rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm">2</div>
+                            <h2 class="font-heading font-bold text-lg text-gray-800">المنشورات العلمية (بعد الاستفادة السابقة)</h2>
+                        </div>
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold border border-green-200" x-text="articlesTotal.toFixed(2).replace(/\.00$/, '') + ' نقطة'"></span>
+                    </button>
+                    
+                    <div x-show="exp" class="p-5 space-y-6 accordion-content">
+                        <template x-for="cat in ['A_plus', 'A', 'B', 'C']" :key="cat">
+                            <div class="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                <div class="bg-gray-50 p-3 border-b border-gray-100 flex justify-between items-center">
+                                    <h3 class="font-bold text-gray-700 text-sm" x-text="`مقالات صنف ${cat.replace('_plus', '+')} (${articleBases[cat]} نقطة أساس)`"></h3>
+                                    <button @click="articles[cat].push({rank: '1', count: 1})" class="text-xs bg-uni-dark text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition flex items-center gap-1">
+                                        <span>+</span> إضافة ترتيب
+                                    </button>
+                                </div>
+                                <div class="p-3 bg-white space-y-2">
+                                    <template x-for="(row, idx) in articles[cat]" :key="idx">
+                                        <div class="flex flex-wrap md:flex-nowrap items-center gap-3 p-2 bg-gray-50/50 rounded-lg border border-gray-100">
+                                            <div class="flex-1 min-w-[150px]">
+                                                <label class="text-[10px] text-gray-500 block mb-1">الترتيب</label>
+                                                <select x-model="row.rank" class="w-full border border-gray-200 rounded-md text-sm p-1.5 outline-none">
+                                                    <option value="1">مؤلف أول (100%)</option>
+                                                    <option value="2">مؤلف ثاني (90%)</option>
+                                                    <option value="3">مؤلف ثالث (80%)</option>
+                                                    <option value="4">مؤلف رابع (70%)</option>
+                                                    <option value="5">مؤلف خامس فما فوق (50%)</option>
+                                                </select>
+                                            </div>
+                                            <!-- إدخال الأرقام التفاعلي -->
+                                            <div class="w-auto">
+                                                <label class="text-[10px] text-gray-500 block mb-1 text-center">العدد</label>
+                                                <div class="flex items-center justify-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm w-max mx-auto">
+                                                    <button @click="row.count++" class="w-7 h-7 rounded bg-gray-50 hover:bg-gray-200 text-gray-600 font-bold transition">+</button>
+                                                    <input type="number" min="0" x-model.number="row.count" class="w-10 text-center text-sm font-bold focus:outline-none bg-transparent">
+                                                    <button @click="if(row.count > 0) row.count--" class="w-7 h-7 rounded bg-gray-50 hover:bg-gray-200 text-gray-600 font-bold transition">-</button>
+                                                </div>
+                                            </div>
+                                            <div class="w-20 text-center">
+                                                <label class="text-[10px] text-gray-500 block mb-1">المجموع</label>
+                                                <span class="font-bold text-uni-accent text-sm" x-text="(row.count * articleBases[cat] * rankMult[row.rank]).toFixed(2).replace(/\.00$/, '')"></span>
+                                            </div>
+                                            <div class="w-8 flex items-end pb-2 justify-center">
+                                                <button @click="articles[cat].splice(idx, 1)" x-show="articles[cat].length > 1" class="text-red-400 hover:text-red-600 bg-white p-1 rounded border">✕</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="cat === 'C' && getCArticleCount() > 2" class="text-xs text-red-500 mt-2 font-bold bg-red-50 p-2 rounded border border-red-100">
+                                        تنبيه: السقف الأقصى لصنف C هو مقالين (10 نقاط). سيتم احتساب أفضل مقالين فقط.
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- الفئات القياسية -->
+                <template x-for="(cat, catIndex) in standardCategories" :key="cat.id">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-4 accordion-container" x-data="{ exp: false }">
+                        <button @click="exp = !exp" class="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-uni-light border-b border-gray-200">
+                            <div class="flex items-center gap-3">
+                                <div class="bg-uni-dark text-white rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm" x-text="catIndex + 3"></div>
+                                <h2 class="font-heading font-bold text-lg text-gray-800" x-text="cat.name"></h2>
+                            </div>
+                            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold border border-green-200" x-text="getStandardCatTotal(cat).toFixed(2).replace(/\.00$/, '') + ' نقطة'"></span>
+                        </button>
+                        
+                        <div x-show="exp" x-collapse class="accordion-content">
+                            <table class="w-full text-right border-collapse">
+                                <thead>
+                                    <tr class="bg-white text-gray-500 text-xs border-b border-gray-100">
+                                        <th class="py-3 px-4 text-right">المعيار (النقاط)</th>
+                                        <th class="py-3 px-2 text-center w-32">العدد</th>
+                                        <th class="py-3 px-4 text-center w-24">المجموع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="item in cat.items" :key="item.id">
+                                        <tr class="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                                            <td class="py-3 px-4">
+                                                <div class="font-semibold text-gray-700 text-sm" x-text="item.name"></div>
+                                                <div class="text-[11px] text-gray-400 mt-0.5 flex gap-2">
+                                                    <span class="text-uni-accent font-bold" x-text="item.pts + ' نقطة للمفرد'"></span>
+                                                    <span x-show="item.maxIn" x-text="' | سقف الإدخال: ' + item.maxIn"></span>
+                                                    <span x-show="item.maxPts" x-text="' | سقف النقاط: ' + item.maxPts"></span>
+                                                </div>
+                                            </td>
+                                            <td class="py-3 px-2 text-center">
+                                                <div class="flex items-center justify-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm w-max mx-auto">
+                                                    <button @click="incrementStd(item.id, item.maxIn)" class="w-7 h-7 rounded bg-gray-50 text-gray-600 font-bold">+</button>
+                                                    <input type="number" min="0" :max="item.maxIn" x-model.number="stdInputs[item.id]" 
+                                                           @input="stdInputs[item.id] = item.maxIn ? Math.min(Math.max(0, stdInputs[item.id]), item.maxIn) : Math.max(0, stdInputs[item.id])"
+                                                           class="w-10 text-center text-sm font-bold focus:outline-none bg-transparent">
+                                                    <button @click="decrementStd(item.id)" class="w-7 h-7 rounded bg-gray-50 text-gray-600 font-bold">-</button>
+                                                </div>
+                                            </td>
+                                            <td class="py-3 px-4 text-center">
+                                                <span class="inline-flex items-center justify-center px-3 py-1 rounded-md bg-uni-light text-uni-dark font-black text-sm border border-uni-accent/30 min-w-[3rem]" 
+                                                      x-text="getStdItemTotal(item).toFixed(2).replace(/\.00$/, '')">
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- قالب الطباعة الرسمي -->
+    <!-- ========================================== -->
+    <div class="hidden print-only bg-white text-black">
+        
+        <table class="page-shell">
+            <thead>
+                <tr>
+                    <td>
+                        <!-- التاريخ والوقت (يظهر في بداية كل صفحة) -->
+                        <div class="text-left text-[11px] text-gray-600 font-bold mb-2" style="font-family: sans-serif !important;" dir="ltr" x-text="printDate"></div>
+                    </td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <!-- الترويسة -->
+                        <div class="grid grid-cols-[1fr_auto_1fr] items-center mb-6 border-b-2 border-black pb-4 gap-2">
+                            <div class="text-right">
+                                <p class="font-bold text-[16px] leading-loose mb-0.5">الجمهورية الجزائرية الديمقراطية الشعبية</p>
+                                <p class="font-bold text-[16px] leading-loose mb-0.5">وزارة التعليم العالي والبحث العلمي</p>
+                                <p class="font-bold text-[15px] leading-loose">جامعة عمار ثليجي بالأغواط</p>
+                            </div>
+                            <div class="text-center px-4">
+                                <img src="laghouat_univ_logo.png" alt="شعار الجامعة" class="h-24 w-auto object-contain mx-auto" onerror="this.style.display='none'">
+                            </div>
+                            <div class="text-left font-bold text-[15px] leading-loose">
+                                <p>كلية العلوم الإسلامية والحضارة</p>
+                                <p>نائب العميد المكلف بالبحث العلمي</p>
+                                <p>وما بعد التدرج والعلاقات الخارجية</p>
+                            </div>
+                        </div>
+                        
+                        <!-- عنوان الوثيقة -->
+                        <div class="text-center mb-6">
+                            <h1 class="text-2xl font-bold underline mb-4">شبكة التقييم للتربصات قصيرة المدى بالخارج</h1>
+                            <div class="inline-block border-2 border-black px-8 py-2 rounded-xl bg-gray-50/50">
+                                <h2 class="text-xl font-bold">الدكتـــور(ة): <span x-text="profName || '...........................................'"></span></h2>
+                            </div>
+                        </div>
+
+                        <!-- الجدول الديناميكي للطباعة -->
+                        <table class="content-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">الفئة</th>
+                                    <th style="width: 45%;">المعيار / النشاط</th>
+                                    <th style="width: 12%;">العدد</th>
+                                    <th style="width: 18%;">المجموع الجزئي</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(row, index) in getPrintRows()" :key="index">
+                                    <tr>
+                                        <template x-if="row.isFirst">
+                                            <td :rowspan="row.rowspan" class="font-bold align-middle text-[15px] bg-gray-50/40 text-center" x-text="row.cat"></td>
+                                        </template>
+                                        <td class="align-middle text-[14px] leading-relaxed" x-html="row.item"></td>
+                                        <td class="text-center align-middle font-bold text-gray-700" x-text="row.count"></td>
+                                        <td class="text-center align-middle font-bold text-[16px]" x-text="row.total"></td>
+                                    </tr>
+                                </template>
+                                <tr class="bg-gray-100 border-t-2 border-black">
+                                    <td colspan="3" class="text-left font-bold text-[18px] p-3 align-middle">المجموع الكلي للنقاط:</td>
+                                    <td class="text-center font-bold text-[20px] p-3 align-middle" x-text="grandTotal.toFixed(2).replace(/\.00$/, '')"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- التنبيهات والشروط (حسب القرار) -->
+                        <div class="mt-6 border border-gray-300 p-4 rounded-lg bg-gray-50/50 text-right">
+                            <p class="font-bold text-[14px] mb-2 underline">شروط وملاحظات تنظيمية هامة:</p>
+                            <ul class="list-disc pr-6 space-y-1 text-[13px] font-bold">
+                                <li>تُحتسب الأعمال المنجزة ابتداءً من تاريخ غلق منصة إيداع الملفات لآخر استفادة.</li>
+                                <li>تُؤخذ بعين الاعتبار جميع الأعمال المذكورة في شبكة التقييم بعد الاستفادة السابقة حتى في حالة تحويل المؤسسة الجامعية أو البحثية.</li>
+                                <li class="mt-2 text-[14px] text-center pt-2 border-t border-gray-300 block">أُعدّ هذا التقييم بالاستناد إلى سلّم التقييم الملحق بالقرار رقم 345 المؤرخ في 09 مارس 2026، والمعتمد بموجبه.</li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('PWA Registration failed: ', err));
+            });
+        }
+    </script>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('internshipCalc', () => ({
+                
+                printDate: '',
+                savedProfiles: Alpine.$persist([]).as('c26_profiles_db_v5'),
+                selectedProfile: '',
+                
+                profName: Alpine.$persist('').as('c26v9_profName'),
+                rank: Alpine.$persist('mca').as('c26v9_rank'),
+                habilitation: Alpine.$persist(false).as('c26v9_hab'),
+                benefits: Alpine.$persist(0).as('c26v9_ben'),
+                
+                articles: Alpine.$persist({
+                    A_plus: [{ rank: '1', count: 0 }],
+                    A: [{ rank: '1', count: 0 }],
+                    B: [{ rank: '1', count: 0 }],
+                    C: [{ rank: '1', count: 0 }]
+                }).as('c26v9_articles'),
+
+                stdInputs: Alpine.$persist({}).as('c26v9_std'),
+
+                articleBases: { A_plus: 20, A: 15, B: 10, C: 5 },
+                rankMult: { '1': 1.0, '2': 0.9, '3': 0.8, '4': 0.7, '5': 0.5 },
+
+                standardCategories: [
+                    { id: 'prizes', name: 'الجوائز وبراءات الاختراع', items: [
+                        { id: 'prize_pat', name: 'براءة اختراع', pts: 20 },
+                        { id: 'prize_int_nat', name: 'جائزة دولية و/أو وطنية (إنجاز علمي)', pts: 10 }
+                    ]},
+                    { id: 'conf', name: 'المداخلات العلمية (بعد الاستفادة السابقة)', items: [
+                        { id: 'conf_1', name: 'مداخلة دولية مصنفة (SCOPUS, WOS)', pts: 6 },
+                        { id: 'conf_2', name: 'مداخلة دولية مفهرسة', pts: 4, maxIn: 4 },
+                        { id: 'conf_3', name: 'مداخلة دولية غير مصنفة', pts: 2, maxIn: 4 },
+                        { id: 'conf_4', name: 'مداخلة وطنية', pts: 1, maxIn: 4 }
+                    ]},
+                    { id: 'proj', name: 'مشاريع البحث والتطوير التكنولوجي', items: [
+                        { id: 'proj_1', name: 'مشروع دولي (Erasmus+, PRIMA...)', pts: 10 },
+                        { id: 'proj_2', name: 'مشروع وطني (تطوير تكنولوجي / PNR-PRFU)', pts: 5 }
+                    ]},
+                    { id: 'sup', name: 'الإشراف والمناقشات العلمية', items: [
+                        { id: 'sup_1', name: 'مشرف على أطروحة دكتوراه نوقشت', pts: 5 },
+                        { id: 'sup_2', name: 'مساعد مشرف على أطروحة نوقشت', pts: 3 },
+                        { id: 'sup_3', name: 'مشاركة في لجان مناقشة دكتوراه', pts: 1, maxIn: 2 },
+                        { id: 'sup_4', name: 'إشراف مشروع قرار 1275', pts: 2, maxIn: 2 },
+                        { id: 'sup_label', name: 'إشراف مشروع حصل على وسم لابل', pts: 5 },
+                        { id: 'sup_5', name: 'تأطير طلبة الماستر', pts: 1, maxIn: 3 },
+                        { id: 'sup_6', name: 'تأطير طلبة الليسانس', pts: 0.5, maxIn: 6 } 
+                    ]},
+                    { id: 'ped_pub', name: 'المطبوعات والكتب المحكمة', items: [
+                        { id: 'pub_book_1', name: 'Chapterbook محكم دوليا', pts: 5 },
+                        { id: 'pub_book_2', name: 'كتاب محكم بيداغوجي/علمي ISBN', pts: 5 },
+                        { id: 'pub_book_3', name: 'كتاب محكم بيداغوجي/علمي ISBN (بالإنجليزية)', pts: 7 },
+                        /* التصحيح الدقيق لاستثناءات الإنجليزية والتدريس */
+                        { id: 'pub_hand_1', name: 'مطبوعة بيداغوجية مصادق عليها (أساسية)', pts: 3 },
+                        { id: 'pub_hand_2', name: 'مطبوعة بيداغوجية (أساسية + يُدرَّس بها)', pts: 5 },
+                        { id: 'pub_hand_3', name: 'مطبوعة بيداغوجية (بالإنجليزية - لغير مقياس الإنجليزية)', pts: 5 },
+                        { id: 'pub_hand_4', name: 'مطبوعة بيداغوجية (بالإنجليزية لغير مقياس الإنجليزية + يُدرَّس بها)', pts: 7 }
+                    ]},
+                    { id: 'elearn', name: 'الدروس البيداغوجية عبر الخط (e-Learning)', items: [
+                        { id: 'el_lec_1', name: 'دروس', pts: 2 },
+                        { id: 'el_lec_2', name: 'دروس (بالإنجليزية - لغير مقياس الإنجليزية)', pts: 4 },
+                        { id: 'el_td_1', name: 'أعمال موجهة', pts: 1 },
+                        { id: 'el_td_2', name: 'أعمال موجهة (بالإنجليزية - لغير مقياس الإنجليزية)', pts: 3 },
+                        { id: 'el_tp_1', name: 'أعمال تطبيقية', pts: 1 },
+                        { id: 'el_tp_2', name: 'أعمال تطبيقية (بالإنجليزية - لغير مقياس الإنجليزية)', pts: 3 }
+                    ]},
+                    { id: 'ped_rev', name: 'النشاطات البيداغوجية والخبرة التحكيمية', items: [
+                        { id: 'ped_core', name: 'تدريس محاضرة في جذع مشترك', pts: 4, maxIn: 2 },
+                        { id: 'rev_1_plus', name: 'تحكيم فعلي في مجلات صنف A+', pts: 5 },
+                        { id: 'rev_1', name: 'تحكيم فعلي في مجلات صنف A', pts: 4, maxIn: 4 },
+                        { id: 'rev_2', name: 'تحكيم فعلي في مجلات صنف B', pts: 2, maxIn: 4 },
+                        { id: 'rev_3', name: 'تحكيم فعلي في مجلات صنف C', pts: 1, maxIn: 4 }
+                    ]},
+                    { id: 'comm', name: 'الهيئات والمجالس والمسؤوليات', items: [
+                        { id: 'com_1', name: 'رؤساء الهيئات العلمية', pts: 2 },
+                        { id: 'com_2', name: 'عضوية اللجان والمجالس العلمية', pts: 1, maxIn: 3 },
+                        { id: 'com_admin', name: 'مدير نشر / رئيس تحرير / عضو مخبر', pts: 1, maxPts: 3 },
+                        { id: 'com_high', name: 'منصب عالي (هيكلي / وظيفي)', pts: 2 },
+                        { id: 'com_support', name: 'عمل داخل هيئات المرافقة والواجهات', pts: 1, maxIn: 2 }
+                    ]},
+                    { id: 'cite', name: 'الاقتباسات العلمية (Citations)', items: [
+                        { id: 'cite_1', name: 'اقتباسات Scopus للمؤسسة', pts: 0.1 }
+                    ]}
+                ],
+
+                init() {
+                    window.myScoreChart = null;
+                    
+                    this.standardCategories.forEach(cat => {
+                        cat.items.forEach(item => {
+                            if(this.stdInputs[item.id] === undefined) this.stdInputs[item.id] = 0;
+                        });
+                    });
+
+                    this.$nextTick(() => {
+                        this.initChart();
+                        this.$watch('rank', () => this.updateChart());
+                        this.$watch('habilitation', () => this.updateChart());
+                        this.$watch('benefits', () => this.updateChart());
+                        this.$watch('articles', () => this.updateChart(), { deep: true });
+                        this.$watch('stdInputs', () => this.updateChart(), { deep: true });
+                    });
+                },
+
+                saveProfile() {
+                    if(!this.profName.trim()) { 
+                        alert('تنبيه: الرجاء كتابة اسم الدكتور(ة) أولاً لحفظ التقييم.'); 
+                        return; 
+                    }
+                    const d = new Date();
+                    const dateStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' - ' + d.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+                    
+                    const profileData = {
+                        profName: this.profName,
+                        rank: this.rank,
+                        habilitation: this.habilitation,
+                        benefits: this.benefits,
+                        articles: JSON.parse(JSON.stringify(this.articles)),
+                        stdInputs: JSON.parse(JSON.stringify(this.stdInputs)),
+                        lastUpdated: dateStr
+                    };
+                    
+                    const idx = this.savedProfiles.findIndex(p => p.profName === this.profName);
+                    if(idx > -1) {
+                        this.savedProfiles[idx] = profileData;
+                        alert('تم تحديث نقاط الدكتور(ة): ' + this.profName + ' بنجاح.');
+                    } else {
+                        this.savedProfiles.push(profileData);
+                        alert('تم حفظ تقييم جديد باسم: ' + this.profName);
+                    }
+                    this.selectedProfile = this.profName;
+                },
+
+                loadProfile() {
+                    if(!this.selectedProfile) return;
+                    const profile = this.savedProfiles.find(p => p.profName === this.selectedProfile);
+                    if(profile) {
+                        this.profName = profile.profName;
+                        this.rank = profile.rank;
+                        this.habilitation = profile.habilitation;
+                        this.benefits = profile.benefits;
+                        this.articles = JSON.parse(JSON.stringify(profile.articles));
+                        this.stdInputs = JSON.parse(JSON.stringify(profile.stdInputs));
+                        this.$nextTick(() => this.updateChart());
+                    }
+                },
+
+                deleteSelectedProfile() {
+                    if(!this.selectedProfile) return;
+                    if(confirm('هل أنت متأكد من حذف تقييم الدكتور(ة): ' + this.selectedProfile + ' نهائياً من النظام؟')) {
+                        this.savedProfiles = this.savedProfiles.filter(p => p.profName !== this.selectedProfile);
+                        if(this.profName === this.selectedProfile) this.resetData();
+                        this.selectedProfile = '';
+                    }
+                },
+
+                printPage() {
+                    const d = new Date();
+                    const dateStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+                    const timeStr = d.toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit', hour12: true });
+                    this.printDate = dateStr + ' ، ' + timeStr;
+                    
+                    const fileName = this.profName ? `تقييم_تربص_د_${this.profName.replace(/\s+/g, '_')}_2026` : 'حاسبة_تقييم_التربصات_2026';
+                    document.title = fileName;
+                    
+                    setTimeout(() => {
+                        window.print();
+                        document.title = "حاسبة تقييم التربصات قصيرة المدى - قرار 2026";
+                    }, 100);
+                },
+
+                getPrintRows() {
+                    let rows = [];
+
+                    let rankDesc = this.getRankName();
+                    if (this.rank === 'mcb' && this.habilitation) rankDesc += ' <span class="font-bold">+ إضافة التأهيل الجامعي</span>';
+                    
+                    rows.push({
+                        cat: 'الرتبة العلمية والاستفادات',
+                        rowspan: 2,
+                        isFirst: true,
+                        item: `<span class="font-bold">الرتبة الأكاديمية:</span> ${rankDesc}`,
+                        count: '-',
+                        total: this.getBaseRankPoints()
+                    });
+
+                    let benDesc = this.benefits > 0 
+                        ? `<span class="text-gray-700">الاستفادات في آخر 3 سنوات: ${this.benefits} (خصم ${this.benefits} نقاط)</span>` 
+                        : `<span class="text-gray-700">الاستفادات في آخر 3 سنوات: 0 (بدون خصم)</span>`;
+
+                    rows.push({
+                        cat: 'الرتبة العلمية والاستفادات',
+                        rowspan: 0,
+                        isFirst: false,
+                        item: benDesc,
+                        count: this.benefits > 0 ? this.benefits : '-',
+                        total: this.benefits > 0 ? '-' + this.benefits : '0'
+                    });
+
+                    let articleRows = [];
+                    ['A_plus', 'A', 'B', 'C'].forEach(cat => {
+                        this.articles[cat].forEach(row => {
+                            if (row.count > 0) {
+                                let labelCat = cat === 'A_plus' ? 'A+' : cat;
+                                let txt = `مقال صنف ${labelCat} <span class="font-bold mr-1">- ${this.getRankLabel(row.rank)}</span>`;
+                                if (cat === 'C' && this.getCArticleCount() > 2) {
+                                    txt += `<span class="text-[12px] font-bold mr-2 text-gray-700">(تم احتساب أفضل مقالين فقط)</span>`;
+                                }
+                                let tot = (row.count * this.articleBases[cat] * this.rankMult[row.rank]).toFixed(2).replace(/\.00$/, '');
+                                articleRows.push({ item: txt, count: row.count, total: tot });
+                            }
+                        });
+                    });
+                    
+                    if (articleRows.length > 0) {
+                        articleRows.forEach((r, idx) => {
+                            rows.push({
+                                cat: 'المنشورات العلمية',
+                                rowspan: idx === 0 ? articleRows.length : 0,
+                                isFirst: idx === 0,
+                                item: r.item,
+                                count: r.count,
+                                total: r.total
+                            });
+                        });
+                    }
+
+                    this.standardCategories.forEach(cat => {
+                        let catRows = [];
+                        cat.items.forEach(item => {
+                            if (this.stdInputs[item.id] > 0) {
+                                catRows.push({
+                                    item: item.name,
+                                    count: this.stdInputs[item.id],
+                                    total: this.getStdItemTotal(item).toFixed(2).replace(/\.00$/, '')
+                                });
+                            }
+                        });
+                        if (catRows.length > 0) {
+                            catRows.forEach((r, idx) => {
+                                rows.push({
+                                    cat: cat.name,
+                                    rowspan: idx === 0 ? catRows.length : 0,
+                                    isFirst: idx === 0,
+                                    item: r.item,
+                                    count: r.count,
+                                    total: r.total
+                                });
+                            });
+                        }
+                    });
+
+                    return rows;
+                },
+
+                getRankName() {
+                    const ranks = { 'distinguished': 'أستاذ مميز', 'prof': 'أستاذ', 'mca': 'أستاذ محاضر أ', 'mcb': 'أستاذ محاضر ب' };
+                    return ranks[this.rank];
+                },
+
+                getBaseRankPoints() {
+                    let p = 0;
+                    if (this.rank === 'distinguished') p = 9;
+                    else if (this.rank === 'prof') p = 7;
+                    else if (this.rank === 'mca') p = 5;
+                    else if (this.rank === 'mcb') { p = 3; if (this.habilitation) p += 4; }
+                    return p;
+                },
+
+                getRankLabel(r) {
+                    const labels = { '1': 'مؤلف أول', '2': 'مؤلف ثاني', '3': 'مؤلف ثالث', '4': 'مؤلف رابع', '5': 'مؤلف خامس فما فوق' };
+                    return labels[r];
+                },
+
+                get rankTotal() {
+                    return this.getBaseRankPoints() - (parseInt(this.benefits) || 0);
+                },
+
+                getCArticleCount() {
+                    return this.articles.C.reduce((sum, row) => sum + (parseInt(row.count) || 0), 0);
+                },
+
+                get articlesTotal() {
+                    let total = 0;
+                    ['A_plus', 'A', 'B'].forEach(cat => {
+                        this.articles[cat].forEach(row => {
+                            total += (parseInt(row.count) || 0) * this.articleBases[cat] * this.rankMult[row.rank];
+                        });
+                    });
+                    
+                    let cRanks = [];
+                    this.articles.C.forEach(row => {
+                        let cnt = parseInt(row.count) || 0;
+                        for(let i=0; i<cnt; i++) cRanks.push(parseInt(row.rank));
+                    });
+                    cRanks.sort((a,b) => a - b); 
+                    cRanks.slice(0, 2).forEach(r => {
+                        total += 5 * this.rankMult[r.toString()];
+                    });
+                    
+                    return total;
+                },
+
+                incrementStd(id, maxIn) {
+                    let val = this.stdInputs[id] || 0;
+                    if(maxIn && val >= maxIn) return;
+                    this.stdInputs[id] = val + 1;
+                },
+
+                decrementStd(id) {
+                    if (this.stdInputs[id] > 0) this.stdInputs[id]--;
+                },
+
+                getStdItemTotal(item) {
+                    let val = this.stdInputs[item.id] || 0;
+                    let sub = val * item.pts;
+                    if (item.maxPts) sub = Math.min(sub, item.maxPts);
+                    return sub;
+                },
+
+                getStandardCatTotal(cat) {
+                    return cat.items.reduce((sum, item) => sum + this.getStdItemTotal(item), 0);
+                },
+
+                get grandTotal() {
+                    let sum = this.rankTotal + this.articlesTotal;
+                    this.standardCategories.forEach(c => sum += this.getStandardCatTotal(c));
+                    return sum;
+                },
+
+                resetData() {
+                    if(confirm('سيتم إفراغ الخانات لبدء تقييم جديد. متأكد؟')) {
+                        this.profName = ''; 
+                        this.selectedProfile = '';
+                        this.rank = 'mca'; this.habilitation = false; this.benefits = 0;
+                        this.articles = { A_plus: [{rank:'1',count:0}], A: [{rank:'1',count:0}], B: [{rank:'1',count:0}], C: [{rank:'1',count:0}] };
+                        Object.keys(this.stdInputs).forEach(k => this.stdInputs[k] = 0);
+                    }
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('scoreChart');
+                    if(!ctx) return;
+                    
+                    const chartColors = [
+                        '#073525', '#00C288', '#3b82f6', '#8b5cf6', 
+                        '#ec4899', '#f43f5e', '#f97316', '#eab308', 
+                        '#84cc16', '#14b8a6', '#64748b', '#0ea5e9'
+                    ];
+
+                    if (window.myScoreChart) {
+                        window.myScoreChart.destroy();
+                    }
+
+                    window.myScoreChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: this.getChartLabels(),
+                            datasets: [{
+                                data: this.getChartDataValues(),
+                                backgroundColor: chartColors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: { responsive: true, plugins: { legend: { display: false } }, cutout: '70%' }
+                    });
+                },
+
+                updateChart() {
+                    if(window.myScoreChart) {
+                        window.myScoreChart.data.datasets[0].data = this.getChartDataValues();
+                        window.myScoreChart.update();
+                    }
+                },
+
+                getChartLabels() {
+                    let labels = ['الرتبة الأكاديمية', 'المنشورات العلمية'];
+                    this.standardCategories.forEach(cat => labels.push(cat.name));
+                    return labels;
+                },
+
+                getChartDataValues() {
+                    let data = [this.rankTotal, this.articlesTotal];
+                    this.standardCategories.forEach(cat => data.push(this.getStandardCatTotal(cat)));
+                    return data;
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
