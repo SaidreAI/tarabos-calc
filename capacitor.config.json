@@ -1,0 +1,6 @@
+{
+  "appId": "dz.lagh.tarabos",
+  "appName": "حساب نقاط التربص",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
