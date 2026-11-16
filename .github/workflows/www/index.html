@@ -616,9 +616,13 @@
                     document.title = fileName;
                     
                     setTimeout(() => {
-                        window.print();
+                        if (window.AndroidPrint && window.AndroidPrint.doPrint) {
+                            window.AndroidPrint.doPrint();
+                        } else {
+                            window.print();
+                        }
                         document.title = "حاسبة تقييم التربصات قصيرة المدى - قرار 2026";
-                    }, 100);
+                    }, 150);
                 },
 
                 getPrintRows() {
